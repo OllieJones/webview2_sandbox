@@ -1,36 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
+﻿using System.Windows;
 
 namespace webview2Demo
 {
     /// <summary>
-    /// Interaction logic for AlertWindow.xaml
+    ///     Interaction logic for AlertWindow.xaml
     /// </summary>
-    public partial class AlertWindow : Window
+    public partial class AlertWindow
     {
         public AlertWindow()
         {
             InitializeComponent();
         }
+
         public bool? ModalAlert(string message, string title, string ok, string cancel)
         {
             AlertTitle.Text = title;
             Message.Text = message;
 
-            if (!String.IsNullOrEmpty(ok))
+            if (!string.IsNullOrEmpty(ok))
                 OKButton.Content = ok;
-            if (String.IsNullOrEmpty(cancel))
+            if (string.IsNullOrEmpty(cancel))
             {
                 OKButton.Margin = CancelButton.Margin;
                 CancelButton.Visibility = Visibility.Hidden;
@@ -67,6 +56,5 @@ namespace webview2Demo
         {
             DialogResult = true;
         }
-
     }
 }

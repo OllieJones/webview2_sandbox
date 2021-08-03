@@ -1,71 +1,71 @@
 ﻿using System;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Windows;
 
 namespace webview2Demo
 {
     [ClassInterface(ClassInterfaceType.AutoDual)]
     [ComVisible(true)]
-
     public class Api
     {
-        public string Username { get; set; }
+        private static readonly Random RandomGen = new Random();
+        private readonly MainWindow _mainWindow;
         public string Version = "1.1.1";
-        private object menuWindow;
-        private static readonly Random random = new Random();
-        private MainWindow mainWindow = null;
+
         public Api(MainWindow mw)
         {
-            mainWindow = mw;
+            _mainWindow = mw;
         }
 
-        public int Random()
-        {
-            return random.Next();
-        }
+        public string Username { get; set; }
 
-        public string Platform()
-        {
-            return "Win";
-        }
+        public int Random() => RandomGen.Next();
+
+        public string Platform() => "Win";
 
         public string GetVersion()
         {
-            return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+            return Assembly.GetExecutingAssembly().GetName().Version.ToString();
         }
+
         public void CopyToClipboard(string s)
         {
-            mainWindow.Dispatcher.Invoke(() =>
+            _mainWindow.Dispatcher.Invoke(() =>
             {
-                s = s.Replace("\n", "\r\n");                // it's Windows
-                for (int i = 0; i < 10; i++)                // B 10438
+                s = s.Replace("\n", "\r\n"); // it's Windows
+                for (var i = 0; i < 10; i++) // B 10438
                 {
                     try
                     {
                         if (i % 1 == 1)
-                            System.Windows.Clipboard.SetDataObject(s);
+                            Clipboard.SetDataObject(s);
                         else
-                            System.Windows.Clipboard.SetText(s);
+                            Clipboard.SetText(s);
                         return;
                     }
-                    catch { }
-                    System.Threading.Thread.Sleep(10);
+                    catch
+                    {
+                        /* empty, intentionally: ignore clipboard-set problems */
+                    }
+
+                    Thread.Sleep(10);
                 }
             });
         }
 
         public bool SysModalAlert(string text, string title, string okbutton, string cancelbutton)
         {
-            bool ok = false;
-            mainWindow.Dispatcher.Invoke(() =>
+            var ok = false;
+            _mainWindow.Dispatcher.Invoke(() =>
             {
-                AlertWindow alert = new AlertWindow();
+                var alert = new AlertWindow();
 
                 ok = alert.ModalAlert(text, title, okbutton, cancelbutton) == true;
             });
 
             return ok;
         }
-
-
     }
 }
