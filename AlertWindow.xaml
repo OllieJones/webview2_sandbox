@@ -41,7 +41,7 @@
                 </Button.Style>
             </Button>
             <Grid x:Name="ContentGrid" Margin="0,37,0,0" Background="White">
-                <TextBlock x:Name="AlertTitle" HorizontalAlignment="Left" Margin="10,10,0,0" TextWrapping="Wrap" Text="Title" VerticalAlignment="Top" Width="276" FontWeight="Bold" FontFamily="Segoe WP SemiLight" FontSize="16"/>
+                <TextBlock x:Name="AlertTitle" HorizontalAlignment="Left" Margin="10,10,0,0" TextWrapping="Wrap" Text="Title" VerticalAlignment="Top" Width="426" FontWeight="Bold" FontFamily="Segoe WP SemiLight" FontSize="16"/>
                 <TextBlock x:Name="Message" TextWrapping="Wrap" Text="Message" HorizontalAlignment="Left" Margin="10,34,0,0" VerticalAlignment="Top" Height="134" Width="426" FontFamily="Segoe WP SemiLight" FontSize="14"/>
                 <Button x:Name="CancelButton" Content="Cancel" IsCancel="True" Style="{StaticResource ActionButtons}" HorizontalAlignment="Left" Margin="361,173,0,0" VerticalAlignment="Top" Width="75" Height="26" RenderTransformOrigin="-0.148,0.455" Click="CancelButton_Click" FontFamily="Segoe WP SemiLight"/>
                 <Button x:Name="OKButton" Content="OK" IsDefault="True" Style="{StaticResource ActionButtons}" HorizontalAlignment="Left" Margin="281,173,0,0" VerticalAlignment="Top" Width="75" Height="26" BorderBrush="#33AAE1" RenderTransformOrigin="-0.148,0.455" FontFamily="Segoe WP SemiLight" Click="OKButton_Click"/>
