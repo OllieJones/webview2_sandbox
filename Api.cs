@@ -21,7 +21,10 @@ namespace webview2Demo
 
         public string Username { get; set; }
 
-        public int Random() => RandomGen.Next();
+        public int Random()
+        {
+            return RandomGen.Next();
+        }
 
         public string Platform() => "Win";
 
