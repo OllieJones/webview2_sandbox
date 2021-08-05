@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
 
 namespace webview2Demo
 {
@@ -10,11 +12,44 @@ namespace webview2Demo
     /// </summary>
     public partial class MainWindow
     {
+
+
+        private const string TestScript = @"
+        (async function foo () {
+          const api = chrome.webview.hostObjects.api
+          const ver = await api.Random()
+          const user = 'foo.bar'
+          api.Username = user
+          const retrieved = await api.Username
+          const confirmed = confirm (retrieved)
+          await api.CopyToClipboard('https://nytimes.com/')
+          //const result = await api.SysModalAlert('alert', 'title', 'cancel', 'file not found')
+          alert ('foo')
+          /*
+          setTimeout (
+            function () { 
+              alert('foobar') 
+              console.error('foobar')
+            }, 
+            3000)
+          */
+        })().then()
+
+        async function frobozz(a) {
+          console.log ('in frobozz', a)
+          const api = chrome.webview.hostObjects.api
+          const q = a + ' ' + await api.GetVersion()
+          alert (q)
+        }
+        ";
+
+
+
+        private readonly string _cacheFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WebView2Demo");
+
         public MainWindow()
         {
             InitializeComponent();
-            //webView.NavigationStarting += EnsureHttps;
-
             InitializeAsync();
         }
 
@@ -39,90 +74,62 @@ namespace webview2Demo
 
         private async void InitializeAsync()
         {
-            await webView.EnsureCoreWebView2Async();
+            var webView2Environment = await CoreWebView2Environment.CreateAsync(null, _cacheFolderPath);
+            await webView.EnsureCoreWebView2Async(webView2Environment);
+            var foo = await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(TestScript);
+            GetConsoleLogMessages(webView);
+
             webView.CoreWebView2.WebMessageReceived += UpdateAddressBar;
             webView.CoreWebView2.NavigationCompleted += CheckForError;
-            grabMessages();
-            webView.CoreWebView2.ScriptDialogOpening += (object s, CoreWebView2ScriptDialogOpeningEventArgs e) =>
-            {
-                var title = "";
-                var text = "";
-                var okButton = "";
-                var cancelButton = "";
-
-                switch (e.Kind)
-                {
-                    case CoreWebView2ScriptDialogKind.Alert:
-                        title = e.Uri;
-                        text = e.Message;
-                        okButton = "OK";
-                        break;
-                    case CoreWebView2ScriptDialogKind.Confirm:
-                        title = e.Uri;
-                        text = e.Message;
-                        okButton = "OK";
-                        cancelButton = "Cancel";
-                        break;
-                    case CoreWebView2ScriptDialogKind.Beforeunload:
-                        title = e.Uri;
-                        text = "BeforeUnload is not yet implemented";
-                        okButton = "OK I guess";
-                        break;
-                    case CoreWebView2ScriptDialogKind.Prompt:
-                        title = e.Uri;
-                        text = "prompt('" + e.Message + "') is not yet implemented";
-                        okButton = "OK I guess";
-                        break;
-                }
-
-                title = title + " says";
-                this.Dispatcher.Invoke(() =>
-                {
-                    var alert = new AlertWindow();
-
-                    var ok = alert.ModalAlert(text, title, okButton, cancelButton) == true;
-                    if (ok) e.Accept();
-                });
-
-            };
+            webView.CoreWebView2.ScriptDialogOpening += HandleWebDialog;
             webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
-
-
-
-            const string testScript = @"
-(async function foo () {
-  const api = chrome.webview.hostObjects.api
-  const ver = await api.Random()
-  const user = 'foo.bar'
-  api.Username = user
-  const retrieved = await api.Username
-  const confirmed = confirm (retrieved)
-  await api.CopyToClipboard('https://nytimes.com/')
-  //const result = await api.SysModalAlert('alert', 'title', 'cancel', 'file not found')
-  alert ('foo')
-  /*
-  setTimeout (
-    function () { 
-      alert('foobar') 
-      console.error('foobar')
-    }, 
-    3000)
-  */
-})().then()
-
-async function frobozz(a) {
-  console.log ('in frobozz', a)
-  const api = chrome.webview.hostObjects.api
-  const q = a + ' ' + await api.Random()
-  alert (q)
-}
-";
-
-
-            var foo = await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(testScript);
 
             await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.chrome.webview.postMessage(window.document.URL);");
             await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.chrome.webview.addEventListener(\'message\', event => alert(event.data));");
+        }
+
+        private void HandleWebDialog(object sender, CoreWebView2ScriptDialogOpeningEventArgs e)
+        {
+            var title = "";
+            var text = "";
+            var okButton = "";
+            var cancelButton = "";
+
+            switch (e.Kind)
+            {
+                case CoreWebView2ScriptDialogKind.Alert:
+                    title = e.Uri;
+                    text = e.Message;
+                    okButton = "OK";
+                    break;
+                case CoreWebView2ScriptDialogKind.Confirm:
+                    title = e.Uri;
+                    text = e.Message;
+                    okButton = "OK";
+                    cancelButton = "Cancel";
+                    break;
+                case CoreWebView2ScriptDialogKind.Beforeunload:
+                    title = e.Uri;
+                    text = "BeforeUnload is not yet implemented";
+                    okButton = "OK I guess";
+                    break;
+                case CoreWebView2ScriptDialogKind.Prompt:
+                    title = e.Uri;
+                    text = "prompt('" + e.Message + "') is not yet implemented";
+                    okButton = "OK I guess";
+                    break;
+            }
+
+            title = title + " says";
+            webView.Dispatcher.Invoke(() =>
+            {
+                var alert = new AlertWindow();
+
+                var ok = alert.ModalAlert(text, title, okButton, cancelButton) == true;
+                if (ok) e.Accept();
+            });
+
+
         }
 
         private void CheckForError(object sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -156,23 +163,27 @@ async function frobozz(a) {
             webView.CoreWebView2.AddHostObjectToScript("api", apiObject);
         }
 
-        private async void grabMessages ()
+        private async void GetConsoleLogMessages(WebView2 view)
         {
-            //TODO this isn't working quite right. It doesn't get my own console.log or console.error stuff, only system stuff.
-            webView.CoreWebView2.GetDevToolsProtocolEventReceiver("Log.entryAdded").DevToolsProtocolEventReceived += OnConsoleMessage;
-            await webView.CoreWebView2.CallDevToolsProtocolMethodAsync("Log.enable", "{}");
-
+            /* request browser log events */
+            //TODO the DevTools console API is deprecated, and Runtime.consoleAPICalled doesn't seem to be invoked
+            /* these events come from the Network and other tabs */
+            view.CoreWebView2.GetDevToolsProtocolEventReceiver("Log.entryAdded").DevToolsProtocolEventReceived +=
+                OnConsoleMessage;
+            await view.CoreWebView2.CallDevToolsProtocolMethodAsync("Log.enable", "{}");
+            /* these events come from console.*() */
+            view.CoreWebView2.GetDevToolsProtocolEventReceiver("Console.messageAdded").DevToolsProtocolEventReceived +=
+                OnConsoleMessage;
+            await view.CoreWebView2.CallDevToolsProtocolMethodAsync("Console.enable", "{}");
+            /* these events supposedly come from console.*(). But as of early Aug-2021, they don't come */
+            view.CoreWebView2.GetDevToolsProtocolEventReceiver("Runtime.consoleAPICalled").DevToolsProtocolEventReceived +=
+                OnConsoleMessage;
         }
 
         private const string AsyncScriptTemplate = @"
             (async function () { 
-              try {
                 await ---SCRIPT---
-              }
-              catch(err) {
-                alert('Error: ' + err)
-              }
-            } )().then()";
+            } )().catch(console.error)";
 
         public async void RunAsyncJavascript(string script)
         {
