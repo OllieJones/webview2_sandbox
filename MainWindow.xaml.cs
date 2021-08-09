@@ -13,7 +13,6 @@ namespace webview2Demo
     public partial class MainWindow
     {
 
-
         private const string TestScript = @"
         (async function foo () {
           const api = chrome.webview.hostObjects.api
@@ -50,9 +49,45 @@ namespace webview2Demo
         public MainWindow()
         {
             InitializeComponent();
-            InitializeAsync();
+            WebView.Visibility = Visibility.Hidden;
+//            WebView = new WebView2();
+//            DockPanel.SetDock(WebView, Dock.Bottom);
+//            WebView.Visibility = Visibility.Visible;
+//            MyTopDock.Children.Add(WebView);
+
+            Loaded += (sender, args) => InitializeAsync();
         }
 
+
+        private async void InitializeAsync()
+        {
+
+            var webView2Environment = await CoreWebView2Environment.CreateAsync(null, _cacheFolderPath);
+            /* NOTICE careful: code after EnsureCoreWebView2Async can run concurrently if you use CoreWebView2InitializationCompleted events. */
+            WebView.CoreWebView2InitializationCompleted += async (sender, args) =>
+            {
+                Console.WriteLine("CoreWebView2InitializationCompleted");
+                if (!args.IsSuccess) throw new ApplicationException("init isSuccess failed");
+                if (args.InitializationException != null) throw new ApplicationException("init exception", args.InitializationException);
+                GetConsoleLogMessages(WebView);
+
+                await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(TestScript);
+
+                WebView.CoreWebView2.WebMessageReceived += UpdateAddressBar;
+                WebView.CoreWebView2.NavigationCompleted += CheckForError;
+
+                await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.chrome.webview.postMessage(window.document.URL);");
+                await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.chrome.webview.addEventListener(\'message\', event => alert(event.data));");
+
+                WebView.CoreWebView2.Navigate("https://www.plumislandmedia.net");
+                WebView.Visibility = Visibility.Visible;
+                Console.WriteLine("CoreWebView2InitializationCompleted exit");
+
+            };
+            await WebView.EnsureCoreWebView2Async(webView2Environment);
+            Console.WriteLine("init done");
+
+        }
 
         private void OnConsoleMessage(object sender, CoreWebView2DevToolsProtocolEventReceivedEventArgs e)
         {
@@ -67,26 +102,11 @@ namespace webview2Demo
             var uri = args.Uri;
             if (!uri.StartsWith("https://"))
             {
-                webView.CoreWebView2.ExecuteScriptAsync($"alert('{uri} is not safe, try an https link')");
+                WebView.CoreWebView2.ExecuteScriptAsync($"alert('{uri} is not safe, try an https link')");
                 args.Cancel = true;
             }
         }
 
-        private async void InitializeAsync()
-        {
-            var webView2Environment = await CoreWebView2Environment.CreateAsync(null, _cacheFolderPath);
-            await webView.EnsureCoreWebView2Async(webView2Environment);
-            var foo = await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(TestScript);
-            GetConsoleLogMessages(webView);
-
-            webView.CoreWebView2.WebMessageReceived += UpdateAddressBar;
-            webView.CoreWebView2.NavigationCompleted += CheckForError;
-            webView.CoreWebView2.ScriptDialogOpening += HandleWebDialog;
-            webView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
-
-            await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.chrome.webview.postMessage(window.document.URL);");
-            await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.chrome.webview.addEventListener(\'message\', event => alert(event.data));");
-        }
 
         private void HandleWebDialog(object sender, CoreWebView2ScriptDialogOpeningEventArgs e)
         {
@@ -121,7 +141,7 @@ namespace webview2Demo
             }
 
             title = title + " says";
-            webView.Dispatcher.Invoke(() =>
+            WebView.Dispatcher.Invoke(() =>
             {
                 var alert = new AlertWindow();
 
@@ -148,24 +168,27 @@ namespace webview2Demo
         {
             var uri = args.TryGetWebMessageAsString();
             addressBar.Text = uri;
-            webView.CoreWebView2.PostWebMessageAsString(uri);
+            WebView.CoreWebView2.PostWebMessageAsString(uri);
         }
 
         private void ButtonGo_Click(object sender, RoutedEventArgs e)
         {
-            webView?.CoreWebView2?.Navigate(addressBar.Text);
+            WebView?.CoreWebView2?.Navigate(addressBar.Text);
         }
 
         private void webView_NavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
         {
             //webView.CoreWebView2.OpenDevToolsWindow();
             var apiObject = new Api(this);
-            webView.CoreWebView2.AddHostObjectToScript("api", apiObject);
+            WebView.CoreWebView2.AddHostObjectToScript("api", apiObject);
         }
 
         private async void GetConsoleLogMessages(WebView2 view)
         {
             /* request browser log events */
+            WebView.CoreWebView2.ScriptDialogOpening += HandleWebDialog;
+            WebView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
+
             //TODO the DevTools console API is deprecated, and Runtime.consoleAPICalled doesn't seem to be invoked
             /* these events come from the Network and other tabs */
             view.CoreWebView2.GetDevToolsProtocolEventReceiver("Log.entryAdded").DevToolsProtocolEventReceived +=
@@ -188,7 +211,7 @@ namespace webview2Demo
         public async void RunAsyncJavascript(string script)
         {
             var s = AsyncScriptTemplate.Replace("---SCRIPT---", script);
-            await webView.CoreWebView2.ExecuteScriptAsync(s);
+            await WebView.CoreWebView2.ExecuteScriptAsync(s);
         }
 
     }

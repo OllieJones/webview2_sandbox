@@ -7,14 +7,13 @@
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
-    <DockPanel>
+    <DockPanel x:Name="MyTopDock" x:FieldModifier="public">
         <DockPanel DockPanel.Dock="Top">
             <Button x:Name="ButtonGo" DockPanel.Dock="Right" Click="ButtonGo_Click" Content="Go" />
             <TextBox Name="addressBar" />
         </DockPanel>
         <wv2:WebView2
-            Name="webView"
-            Source="https://plumislandmedia.net/"
+            Name="WebView"
             NavigationStarting="webView_NavigationStarting" />
-    </DockPanel>
+    </DockPanel>   
 </Window>
