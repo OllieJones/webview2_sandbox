@@ -12,6 +12,8 @@ namespace webview2Demo
     /// </summary>
     public partial class MainWindow
     {
+        /// <summary>The link to the WebView2 runtime.</summary>
+        public static readonly string WebView2RuntimeLink = "https://go.microsoft.com/fwlink/p/?LinkId=2124703";
 
         private const string TestScript = @"
         (async function foo () {
@@ -42,33 +44,72 @@ namespace webview2Demo
         }
         ";
 
+        private const string AsyncScriptTemplate = @"
+            (async function () { 
+                await ---SCRIPT---
+            } )().catch(console.error)";
 
 
-        private readonly string _cacheFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WebView2Demo");
+        private readonly string _cacheFolderPath =
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WebView2Demo");
 
         public MainWindow()
         {
-            InitializeComponent();
-            WebView.Visibility = Visibility.Hidden;
+            try
+            {
+                InitializeComponent();
+                WebView.Visibility = Visibility.Hidden;
 //            WebView = new WebView2();
 //            DockPanel.SetDock(WebView, Dock.Bottom);
 //            WebView.Visibility = Visibility.Visible;
 //            MyTopDock.Children.Add(WebView);
 
-            Loaded += (sender, args) => InitializeAsync();
+                Loaded += (sender, args) => InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.Message + ": Constructor failed";
+                MessageBox.Show(msg, "",
+                    MessageBoxButton.OK, MessageBoxImage.Error,
+                    MessageBoxResult.None, MessageBoxOptions.DefaultDesktopOnly);
+            }
         }
 
 
         private async void InitializeAsync()
         {
+            CoreWebView2Environment webView2Environment;
+            try
+            {
+                webView2Environment = await CoreWebView2Environment.CreateAsync(null, _cacheFolderPath);
+            }
+            catch (WebView2RuntimeNotFoundException ex)
+            {
+                var msg = ex.Message + " Download it from " + WebView2RuntimeLink;
+                var alert = new AlertWindow();
 
-            var webView2Environment = await CoreWebView2Environment.CreateAsync(null, _cacheFolderPath);
+                var ok = alert.ModalAlert(msg, "Download Required", "Download", "Exit");
+                Clipboard.SetText(WebView2RuntimeLink);
+                if (ok == true)
+                {
+                    var proceed = new AlertWindow();
+                    var go = proceed.ModalAlert(
+                        "We will open a web browser and download the required WebView2 software.", "Download Required",
+                        "OK", "Cancel");
+                    if (go == true) Process.Start(WebView2RuntimeLink);
+                }
+
+                Application.Current.Shutdown();
+                return;
+            }
+
             /* NOTICE careful: code after EnsureCoreWebView2Async can run concurrently if you use CoreWebView2InitializationCompleted events. */
             WebView.CoreWebView2InitializationCompleted += async (sender, args) =>
             {
                 Console.WriteLine("CoreWebView2InitializationCompleted");
                 if (!args.IsSuccess) throw new ApplicationException("init isSuccess failed");
-                if (args.InitializationException != null) throw new ApplicationException("init exception", args.InitializationException);
+                if (args.InitializationException != null)
+                    throw new ApplicationException("init exception", args.InitializationException);
                 GetConsoleLogMessages(WebView);
 
                 await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(TestScript);
@@ -76,27 +117,24 @@ namespace webview2Demo
                 WebView.CoreWebView2.WebMessageReceived += UpdateAddressBar;
                 WebView.CoreWebView2.NavigationCompleted += CheckForError;
 
-                await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.chrome.webview.postMessage(window.document.URL);");
-                await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.chrome.webview.addEventListener(\'message\', event => alert(event.data));");
+                await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
+                    "window.chrome.webview.postMessage(window.document.URL);");
+                await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
+                    "window.chrome.webview.addEventListener(\'message\', event => alert(event.data));");
 
                 WebView.CoreWebView2.Navigate("https://www.plumislandmedia.net");
                 WebView.Visibility = Visibility.Visible;
                 Console.WriteLine("CoreWebView2InitializationCompleted exit");
-
             };
             await WebView.EnsureCoreWebView2Async(webView2Environment);
             Console.WriteLine("init done");
-
         }
 
         private void OnConsoleMessage(object sender, CoreWebView2DevToolsProtocolEventReceivedEventArgs e)
         {
-            if (e?.ParameterObjectAsJson != null)
-            {
-
-                Trace.WriteLine("WebView2:" + e.ParameterObjectAsJson);
-            }
+            if (e?.ParameterObjectAsJson != null) Trace.WriteLine("WebView2:" + e.ParameterObjectAsJson);
         }
+
         private void EnsureHttps(object sender, CoreWebView2NavigationStartingEventArgs args)
         {
             var uri = args.Uri;
@@ -148,20 +186,17 @@ namespace webview2Demo
                 var ok = alert.ModalAlert(text, title, okButton, cancelButton) == true;
                 if (ok) e.Accept();
             });
-
-
         }
 
         private void CheckForError(object sender, CoreWebView2NavigationCompletedEventArgs e)
         {
             var s = sender as CoreWebView2;
-            var target = s?.Source.ToString();
+            var target = s?.Source;
 
-            if (!e.IsSuccess) Console.WriteLine("Navigation failed " + target + " " + e.WebErrorStatus.ToString());
+            if (!e.IsSuccess) Console.WriteLine("Navigation failed " + target + " " + e.WebErrorStatus);
 
 
             RunAsyncJavascript("frobozz('Hello')");
-
         }
 
         private void UpdateAddressBar(object sender, CoreWebView2WebMessageReceivedEventArgs args)
@@ -199,20 +234,15 @@ namespace webview2Demo
                 OnConsoleMessage;
             await view.CoreWebView2.CallDevToolsProtocolMethodAsync("Console.enable", "{}");
             /* these events supposedly come from console.*(). But as of early Aug-2021, they don't come */
-            view.CoreWebView2.GetDevToolsProtocolEventReceiver("Runtime.consoleAPICalled").DevToolsProtocolEventReceived +=
+            view.CoreWebView2.GetDevToolsProtocolEventReceiver("Runtime.consoleAPICalled")
+                    .DevToolsProtocolEventReceived +=
                 OnConsoleMessage;
         }
-
-        private const string AsyncScriptTemplate = @"
-            (async function () { 
-                await ---SCRIPT---
-            } )().catch(console.error)";
 
         public async void RunAsyncJavascript(string script)
         {
             var s = AsyncScriptTemplate.Replace("---SCRIPT---", script);
             await WebView.CoreWebView2.ExecuteScriptAsync(s);
         }
-
     }
 }
